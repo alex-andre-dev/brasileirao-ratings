@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const LEAGUE = 71; // Brasileirão Série A
 
-// Todas as temporadas que já têm rating calculado
+// Jogadores de linha, de todas as temporadas com rating calculado
 const rows = db.prepare(`
   SELECT p.id, p.name, r.season,
     r.pos_group AS pos, r.minutes, r.provisional AS prov,
@@ -21,14 +21,26 @@ const rows = db.prepare(`
   JOIN player_stats s ON s.player_id = r.player_id AND s.season = r.season
 `).all();
 
-if (rows.length === 0) {
+// Goleiros (só existem depois de rodar gk-ratings.js)
+const hasGk = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gk_ratings'").get();
+const gkRows = !hasGk ? [] : db.prepare(`
+  SELECT p.id, p.name, g.season, 'GK' AS pos, g.minutes, g.provisional AS prov,
+    g.apr, g.seg, g.pen, g.passe AS gpas, g.overall AS ovr,
+    g.saves, g.conceded, g.pen_saved,
+    s.appearances AS jogos, s.passes_total AS passes, s.raw
+  FROM gk_ratings g
+  JOIN players p ON p.id = g.player_id
+  JOIN player_stats s ON s.player_id = g.player_id AND s.season = g.season
+`).all();
+
+if (rows.length + gkRows.length === 0) {
   console.error('Nenhum rating encontrado. Rode antes: node ratings.js 2024');
   process.exit(1);
 }
 
 // O time vem do JSON original de cada temporada, porque a tabela players
 // guarda só o time do último sync e ficaria errado nas temporadas antigas.
-const data = rows.map(({ raw, ...r }) => {
+const data = [...rows, ...gkRows].map(({ raw, ...r }) => {
   const item = JSON.parse(raw);
   const st = item.statistics.find((x) => x.league?.id === LEAGUE) ?? item.statistics[0];
   return { ...r, team: st?.team?.name ?? '' };
@@ -40,4 +52,4 @@ const json = JSON.stringify(data).replace(/</g, '\\u003c');
 writeFileSync('viewer.html', template.replace('__DATA__', () => json));
 
 const seasons = [...new Set(data.map((r) => r.season))].sort();
-console.log(`viewer.html gerado: ${data.length} linhas, temporadas ${seasons.join(', ')}.`);
+console.log(`viewer.html gerado: ${rows.length} jogadores de linha, ${gkRows.length} goleiros, temporadas ${seasons.join(', ')}.`);

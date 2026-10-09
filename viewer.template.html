@@ -83,24 +83,31 @@ tr.detail{background:var(--hover)}
       <button data-pos="ATT" aria-pressed="false">Atacantes</button>
       <button data-pos="MID" aria-pressed="false">Meio-campistas</button>
       <button data-pos="DEF" aria-pressed="false">Defensores</button>
+      <button data-pos="GK" aria-pressed="false">Goleiros</button>
     </div>
     <label class="check"><input type="checkbox" id="prov"> Incluir provisórios</label>
     <span class="count" id="count" aria-live="polite"></span>
   </div>
   <div class="wrap"><table id="t"></table></div>
-  <p class="note">Notas de 45 a 99, comparadas entre jogadores de linha com 900 minutos ou mais. Provisórios têm de 270 a 899 minutos e a nota é puxada para o meio. Goleiros ainda não têm rating.</p>
+  <p class="note">Notas de 45 a 99, comparadas entre jogadores de linha com 900 minutos ou mais. Provisórios têm de 270 a 899 minutos e a nota é puxada para o meio. Goleiros ficam no filtro próprio e são comparados só entre si, com cerca de 20 por temporada, então as notas variam bastante de um ano para o outro.</p>
 </main>
 <script>
 const DATA = __DATA__;
 
-const POS = {ATT:'ATA', MID:'MEI', DEF:'DEF'};
-const POS_NAME = {ATT:'Atacante', MID:'Meio-campista', DEF:'Defensor'};
+const POS = {ATT:'ATA', MID:'MEI', DEF:'DEF', GK:'GOL'};
+const POS_NAME = {ATT:'Atacante', MID:'Meio-campista', DEF:'Defensor', GK:'Goleiro'};
 const RATINGS = ['fin','pas','dri','dfe','due'];
 const COLS = [
   {k:'name',t:'Jogador'}, {k:'team',t:'Time'}, {k:'pos',t:'Pos.'}, {k:'minutes',t:'Minutos',n:1},
   {k:'fin',t:'Finalização',r:1}, {k:'pas',t:'Passe',r:1}, {k:'dri',t:'Drible',r:1},
   {k:'dfe',t:'Defesa',r:1}, {k:'due',t:'Duelos',r:1}, {k:'ovr',t:'Overall',o:1}
 ];
+const GK_COLS = [
+  {k:'name',t:'Jogador'}, {k:'team',t:'Time'}, {k:'pos',t:'Pos.'}, {k:'minutes',t:'Minutos',n:1},
+  {k:'apr',t:'Aproveitamento',r:1}, {k:'seg',t:'Segurança',r:1}, {k:'pen',t:'Pênaltis',r:1},
+  {k:'gpas',t:'Passe',r:1}, {k:'ovr',t:'Overall',o:1}
+];
+const cols = () => state.pos === 'GK' ? GK_COLS : COLS;
 const TEXT_KEYS = ['name','team','pos'];
 const state = {q:'', team:'', pos:'', prov:false, sort:'ovr', dir:-1, open:new Set()};
 
@@ -128,7 +135,7 @@ function visible() {
     r.season === state.season &&
     (state.prov || !r.prov) &&
     (!state.team || r.team === state.team) &&
-    (!state.pos || r.pos === state.pos) &&
+    (state.pos ? r.pos === state.pos : r.pos !== 'GK') &&
     (!q || r._n.includes(q)));
   const k = state.sort, text = TEXT_KEYS.includes(k);
   rows.sort((a, b) => {
@@ -139,7 +146,8 @@ function visible() {
 }
 
 function detail(r) {
-  const stats = [['Jogos', r.jogos, 1], ['Gols', r.gols], ['Assistências', r.assist], ['Chutes', r.chutes],
+  const stats = r.pos === 'GK' ? [['Jogos', r.jogos, 1], ['Defesas', r.saves], ['Gols sofridos', r.conceded],
+    ['Pênaltis defendidos', r.pen_saved], ['Passes', r.passes]] : [['Jogos', r.jogos, 1], ['Gols', r.gols], ['Assistências', r.assist], ['Chutes', r.chutes],
     ['Chutes no alvo', r.no_alvo], ['Passes', r.passes], ['Passes-chave', r.passes_chave],
     ['Dribles certos', r.dribles_ok], ['Dribles tentados', r.dribles_tent], ['Desarmes', r.desarmes],
     ['Interceptações', r.intercep], ['Duelos ganhos', r.duelos_ganhos], ['Duelos totais', r.duelos_tot]];
@@ -159,7 +167,8 @@ function rowHtml(r) {
     '<td>' + esc(r.team) + '</td>' +
     '<td title="' + POS_NAME[r.pos] + '">' + POS[r.pos] + '</td>' +
     '<td class="num">' + r.minutes.toLocaleString('pt-BR') + '</td>';
-  for (const k of RATINGS) {
+  for (const c of cols().filter(c => c.r)) {
+    const k = c.k;
     h += '<td class="r ctr"><b>' + r[k] + '</b><i style="--v:' + ((r[k] - 45) / 54).toFixed(2) + '"></i></td>';
   }
   h += '<td class="ctr"><span class="badge ' + tier(r.ovr) + '">' + r.ovr + '</span></td></tr>';
@@ -168,7 +177,7 @@ function rowHtml(r) {
 
 function render(focus) {
   const rows = visible();
-  const head = COLS.map(c => {
+  const head = cols().map(c => {
     const cls = c.n ? 'num' : (c.r || c.o) ? 'ctr' : '';
     const s = state.sort === c.k ? (state.dir === 1 ? 'ascending' : 'descending') : 'none';
     return '<th class="' + cls + '" aria-sort="' + s + '"><button data-k="' + c.k + '">' + c.t + '</button></th>';
@@ -207,6 +216,7 @@ $('prov').addEventListener('change', e => { state.prov = e.target.checked; rende
 $('pos').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   state.pos = b.dataset.pos;
+  if (!cols().some(c => c.k === state.sort)) { state.sort = 'ovr'; state.dir = -1; }
   $('pos').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
   render();
 });
