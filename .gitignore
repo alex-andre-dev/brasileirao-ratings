@@ -1,3 +1,13 @@
 .env
 node_modules
 *.db
+viewer.html
+viewer.html
+inspect.js
+inspect2.js
+check-passe.js
+check-season.js
+compare.js
+stats90.js
+dist.js
+player.js

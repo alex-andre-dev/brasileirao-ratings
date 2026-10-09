@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ratings do Brasileirão</title>
+<style>
+:root{
+  --bg:#f3f5f0; --surface:#fff; --ink:#17261c; --muted:#59685d; --line:#d8dfd5;
+  --accent:#1f6b3a; --on-accent:#fff; --tint:#dcebd9; --hover:#eaf0e6;
+  font-family:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0f1a13; --surface:#16241b; --ink:#e6efe8; --muted:#97a79c; --line:#26382c;
+    --accent:#5fcf86; --on-accent:#0f1a13; --tint:#1f3a29; --hover:#1b2d21;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.4}
+header,main{max-width:1180px;margin:0 auto;padding:0 20px}
+header{padding-top:28px}
+h1{font-size:1.65rem;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:18px 0 14px}
+input[type=search],select{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:38px}
+input[type=search]{flex:1 1 220px;max-width:320px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:inherit;color:var(--muted);background:none;border:0;padding:8px 12px;min-height:38px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
+.check{display:inline-flex;gap:6px;align-items:center;color:var(--muted);cursor:pointer}
+.count{margin-left:auto;color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.wrap{max-height:74vh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:880px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+thead th{position:sticky;top:0;z-index:2;background:var(--surface);font-weight:600;color:var(--muted)}
+thead th:first-child{left:0;z-index:3}
+th button{font:inherit;font-weight:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+th[aria-sort=ascending] button,th[aria-sort=descending] button{color:var(--ink)}
+th[aria-sort=ascending] button::after{content:" \25B2";font-size:.7em}
+th[aria-sort=descending] button::after{content:" \25BC";font-size:.7em}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.ctr{text-align:center}
+
+tr.row{background:var(--surface)}
+tr.row:hover,tr.row.open{background:var(--hover)}
+tr.row td:first-child{position:sticky;left:0;z-index:1;background:inherit}
+tr.prov td{color:var(--muted)}
+button.name{font:inherit;font-weight:600;color:var(--ink);background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.tag{font-size:.75rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;margin-left:6px}
+
+td.r b{display:block;font-weight:600;font-variant-numeric:tabular-nums}
+td.r i{display:block;height:3px;width:44px;margin:3px auto 0;border-radius:2px;
+  background:linear-gradient(var(--accent),var(--accent)) left/calc(var(--v)*100%) 100% no-repeat,var(--line)}
+.badge{display:inline-block;min-width:40px;text-align:center;padding:3px 8px;border-radius:6px;font-weight:700;font-variant-numeric:tabular-nums}
+.badge.t3{background:var(--accent);color:var(--on-accent)}
+.badge.t2{background:var(--tint);color:var(--ink)}
+.badge.t1{box-shadow:inset 0 0 0 1px var(--line);color:var(--ink)}
+
+tr.detail{background:var(--hover)}
+.tiles{position:sticky;left:10px;width:min(1100px,calc(100vw - 80px));display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;padding:6px 0 10px;white-space:normal}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.tile span{display:block;color:var(--muted);font-size:.85rem}
+.tile b{font-size:1.2rem;font-variant-numeric:tabular-nums}
+.tile small{display:block;color:var(--muted)}
+.empty{padding:28px 10px;color:var(--muted);white-space:normal}
+.note{color:var(--muted);font-size:.85rem;margin:12px 0 40px;max-width:70ch}
+</style>
+</head>
+<body>
+<header>
+  <h1>Ratings do Brasileirão</h1>
+  <p class="sub">Clique em um jogador para ver as estatísticas brutas e por 90 minutos.</p>
+</header>
+<main>
+  <div class="controls">
+    <select id="season" aria-label="Temporada"></select>
+    <input type="search" id="q" placeholder="Buscar jogador ou time" aria-label="Buscar jogador ou time">
+    <select id="team" aria-label="Filtrar por time"><option value="">Todos os times</option></select>
+    <div class="seg" id="pos" role="group" aria-label="Filtrar por posição">
+      <button data-pos="" aria-pressed="true">Todas</button>
+      <button data-pos="ATT" aria-pressed="false">Atacantes</button>
+      <button data-pos="MID" aria-pressed="false">Meio-campistas</button>
+      <button data-pos="DEF" aria-pressed="false">Defensores</button>
+    </div>
+    <label class="check"><input type="checkbox" id="prov"> Incluir provisórios</label>
+    <span class="count" id="count" aria-live="polite"></span>
+  </div>
+  <div class="wrap"><table id="t"></table></div>
+  <p class="note">Notas de 45 a 99, comparadas entre jogadores de linha com 900 minutos ou mais. Provisórios têm de 270 a 899 minutos e a nota é puxada para o meio. Goleiros ainda não têm rating.</p>
+</main>
+<script>
+const DATA = __DATA__;
+
+const POS = {ATT:'ATA', MID:'MEI', DEF:'DEF'};
+const POS_NAME = {ATT:'Atacante', MID:'Meio-campista', DEF:'Defensor'};
+const RATINGS = ['fin','pas','dri','dfe','due'];
+const COLS = [
+  {k:'name',t:'Jogador'}, {k:'team',t:'Time'}, {k:'pos',t:'Pos.'}, {k:'minutes',t:'Minutos',n:1},
+  {k:'fin',t:'Finalização',r:1}, {k:'pas',t:'Passe',r:1}, {k:'dri',t:'Drible',r:1},
+  {k:'dfe',t:'Defesa',r:1}, {k:'due',t:'Duelos',r:1}, {k:'ovr',t:'Overall',o:1}
+];
+const TEXT_KEYS = ['name','team','pos'];
+const state = {q:'', team:'', pos:'', prov:false, sort:'ovr', dir:-1, open:new Set()};
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const tier = v => v >= 90 ? 't3' : v >= 80 ? 't2' : 't1';
+const $ = id => document.getElementById(id);
+
+DATA.forEach(r => { r._n = norm(r.name + ' ' + r.team); });
+const SEASONS = [...new Set(DATA.map(r => r.season))].sort((a, b) => b - a);
+state.season = SEASONS[0];
+$('season').innerHTML = SEASONS.map(s => '<option>' + s + '</option>').join('');
+function fillTeams() {
+  const teams = [...new Set(DATA.filter(r => r.season === state.season).map(r => r.team))]
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  $('team').innerHTML = '<option value="">Todos os times</option>' +
+    teams.map(t => '<option>' + esc(t) + '</option>').join('');
+  state.team = '';
+}
+fillTeams();
+
+function visible() {
+  const q = norm(state.q.trim());
+  const rows = DATA.filter(r =>
+    r.season === state.season &&
+    (state.prov || !r.prov) &&
+    (!state.team || r.team === state.team) &&
+    (!state.pos || r.pos === state.pos) &&
+    (!q || r._n.includes(q)));
+  const k = state.sort, text = TEXT_KEYS.includes(k);
+  rows.sort((a, b) => {
+    const d = text ? String(a[k]).localeCompare(String(b[k]), 'pt-BR') : a[k] - b[k];
+    return (d * state.dir) || (b.ovr - a.ovr) || a.name.localeCompare(b.name, 'pt-BR');
+  });
+  return rows;
+}
+
+function detail(r) {
+  const stats = [['Jogos', r.jogos, 1], ['Gols', r.gols], ['Assistências', r.assist], ['Chutes', r.chutes],
+    ['Chutes no alvo', r.no_alvo], ['Passes', r.passes], ['Passes-chave', r.passes_chave],
+    ['Dribles certos', r.dribles_ok], ['Dribles tentados', r.dribles_tent], ['Desarmes', r.desarmes],
+    ['Interceptações', r.intercep], ['Duelos ganhos', r.duelos_ganhos], ['Duelos totais', r.duelos_tot]];
+  const tiles = stats.map(([label, v, noP90]) => {
+    v = v ?? 0;
+    const p90 = noP90 ? '' : '<small>' + (v * 90 / r.minutes).toFixed(2).replace('.', ',') + ' por 90 min</small>';
+    return '<div class="tile"><span>' + label + '</span><b>' + v.toLocaleString('pt-BR') + '</b>' + p90 + '</div>';
+  }).join('');
+  return '<tr class="detail"><td colspan="10"><div class="tiles">' + tiles + '</div></td></tr>';
+}
+
+function rowHtml(r) {
+  const open = state.open.has(r.id);
+  let h = '<tr class="row' + (r.prov ? ' prov' : '') + (open ? ' open' : '') + '">' +
+    '<td><button class="name" data-id="' + r.id + '" aria-expanded="' + open + '">' + esc(r.name) + '</button>' +
+    (r.prov ? '<span class="tag">provisório</span>' : '') + '</td>' +
+    '<td>' + esc(r.team) + '</td>' +
+    '<td title="' + POS_NAME[r.pos] + '">' + POS[r.pos] + '</td>' +
+    '<td class="num">' + r.minutes.toLocaleString('pt-BR') + '</td>';
+  for (const k of RATINGS) {
+    h += '<td class="r ctr"><b>' + r[k] + '</b><i style="--v:' + ((r[k] - 45) / 54).toFixed(2) + '"></i></td>';
+  }
+  h += '<td class="ctr"><span class="badge ' + tier(r.ovr) + '">' + r.ovr + '</span></td></tr>';
+  return open ? h + detail(r) : h;
+}
+
+function render(focus) {
+  const rows = visible();
+  const head = COLS.map(c => {
+    const cls = c.n ? 'num' : (c.r || c.o) ? 'ctr' : '';
+    const s = state.sort === c.k ? (state.dir === 1 ? 'ascending' : 'descending') : 'none';
+    return '<th class="' + cls + '" aria-sort="' + s + '"><button data-k="' + c.k + '">' + c.t + '</button></th>';
+  }).join('');
+  const body = rows.length ? rows.map(rowHtml).join('')
+    : '<tr><td colspan="10" class="empty">Nenhum jogador encontrado. Limpe a busca ou troque o filtro de time.</td></tr>';
+  $('t').innerHTML = '<thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody>';
+  $('count').textContent = rows.length + ' jogadores';
+  if (focus) { const el = $('t').querySelector(focus); if (el) el.focus(); }
+}
+
+$('t').addEventListener('click', e => {
+  const sortBtn = e.target.closest('th button');
+  if (sortBtn) {
+    const k = sortBtn.dataset.k;
+    if (state.sort === k) state.dir *= -1;
+    else { state.sort = k; state.dir = TEXT_KEYS.includes(k) ? 1 : -1; }
+    return render('th button[data-k="' + k + '"]');
+  }
+  const nameBtn = e.target.closest('button.name');
+  if (nameBtn) {
+    const id = Number(nameBtn.dataset.id);
+    state.open.has(id) ? state.open.delete(id) : state.open.add(id);
+    render('button.name[data-id="' + id + '"]');
+  }
+});
+$('season').addEventListener('change', e => {
+  state.season = Number(e.target.value);
+  state.open.clear();
+  fillTeams();
+  render();
+});
+$('q').addEventListener('input', e => { state.q = e.target.value; render(); });
+$('team').addEventListener('change', e => { state.team = e.target.value; render(); });
+$('prov').addEventListener('change', e => { state.prov = e.target.checked; render(); });
+$('pos').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.pos = b.dataset.pos;
+  $('pos').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
